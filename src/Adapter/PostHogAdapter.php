@@ -6,13 +6,9 @@ namespace PostHog\PostHogBundle\Adapter;
 
 use PostHog\Client;
 use PostHog\PostHog as PH;
-use PostHog\PostHogBundle\Model\AliasMessage;
-use PostHog\PostHogBundle\Model\GroupIdentifyMessage;
-use PostHog\PostHogBundle\Model\IdentifyMessage;
-use PostHog\PostHogBundle\Model\Message;
-use PostHog\PostHogBundle\PostHogInterface;
+use PostHog\PostHogBundle\Exception\NotInitializedException;
 
-class PostHogAdapter implements PostHogInterface
+class PostHogAdapter
 {
     private Client $client;
 
@@ -22,89 +18,67 @@ class PostHogAdapter implements PostHogInterface
         PH::init(client: $this->client);
     }
 
-    public function capture(Message $message): bool
+    public function capture(array $message): bool
     {
-        return $this->client->capture($message->toArray());
+        return PH::capture($message);
     }
 
-    public function identify(IdentifyMessage $message): bool
+    public function identify(array $message): bool
     {
-        return $this->client->identify($message->toArray());
+        return PH::identify($message);
     }
 
-    public function groupIdentify(GroupIdentifyMessage $message): bool
+    public function groupIdentify(array $message): bool
     {
-        return $this->capture(new Message(
-            event: '$groupidentify',
-            distinctId: sprintf('$%s_%s', $message->groupType, $message->groupKey),
-            properties: [
-                '$group_type' => $message->groupType,
-                '$group_key' => $message->groupKey,
-                '$group_set' => $message->groupProperties,
-            ],
-        ));
+        return PH::groupIdentify($message);
     }
 
-    /**
-     * @throws \Exception
-     */
-    public function isFeatureEnabled(string $key, string $distinctId, array $groups = [], array $personProperties = [], array $groupProperties = [], bool $onlyEvaluateLocally = false, bool $sendFeatureFlagEvents = true): bool|null
+    public function isFeatureEnabled(string $key, string $distinctId, array $groups = [], array $personProperties = [], array $groupProperties = [], bool $onlyEvaluateLocally = false, bool $sendFeatureFlagEvents = true): null|bool
     {
-        return $this->client->isFeatureEnabled($key, $distinctId, $groups, $personProperties, $groupProperties, $onlyEvaluateLocally, $sendFeatureFlagEvents);
+        return PH::isFeatureEnabled($key, $distinctId, $groups, $personProperties, $groupProperties, $onlyEvaluateLocally, $sendFeatureFlagEvents);
     }
 
-    /**
-     * @throws \Exception
-     */
-    public function getFeatureFlag(string $key, string $distinctId, array $groups = [], array $personProperties = [], array $groupProperties = [], bool $onlyEvaluateLocally = false, bool $sendFeatureFlagEvents = true): bool|string|null
+    public function getFeatureFlag(string $key, string $distinctId, array $groups = [], array $personProperties = [], array $groupProperties = [], bool $onlyEvaluateLocally = false, bool $sendFeatureFlagEvents = true): null|bool|string
     {
-        return $this->client->getFeatureFlag($key, $distinctId, $groups, $personProperties, $groupProperties, $onlyEvaluateLocally, $sendFeatureFlagEvents);
+        return PH::getFeatureFlag($key, $distinctId, $groups, $personProperties, $groupProperties, $onlyEvaluateLocally, $sendFeatureFlagEvents);
     }
 
-    /**
-     * @throws \Exception
-     */
-    public function getAllFlags(string $distinctId, array $groups = [], array $personProperties = [], array $groupProperties = [], bool $onlyEvaluateLocally = false): array
+    public function getAllFlags(string $distinctId, array $groups = [], array $personProperties = [], array $groupProperties = [], bool $onlyEvaluateLocally = false)
     {
-        return $this->client->getAllFlags($distinctId, $groups, $personProperties, $groupProperties, $onlyEvaluateLocally);
+        return PH::getAllFlags($distinctId, $groups, $personProperties, $groupProperties, $onlyEvaluateLocally);
     }
 
-    /**
-     * @throws \Exception
-     */
     public function fetchFeatureVariants(string $distinctId, array $groups = []): array
     {
-        return $this->client->fetchFeatureVariants($distinctId, $groups);
+        return PH::fetchFeatureVariants($distinctId, $groups);
     }
 
-    public function alias(AliasMessage $message): bool
+    public function alias(array $message): bool
     {
-        return $this->client->alias($message->toArray());
+        return PH::alias($message);
     }
 
-    public function raw(array $message): mixed
+    public function raw(array $message): bool
     {
-        return $this->client->raw($message);
+        return PH::raw($message);
     }
 
+    /**
+     * @return bool
+     */
     public function flush(): bool
     {
-        $result = $this->client->flush();
+        $result = PH::flush();
 
-        if (\is_bool($result)) {
+        if (is_bool($result)) {
             return $result;
         }
 
-        if (\is_string($result)) {
+        if (is_string($result)) {
             $decoded = json_decode($result, true);
 
-            if (!\is_array($decoded)) {
-                return true;
-            }
-
-            return \array_key_exists('status', $decoded);
+            return array_key_exists('status', $decoded);
         }
 
         return false;
     }
-}
